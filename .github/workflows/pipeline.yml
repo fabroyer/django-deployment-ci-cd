@@ -1,0 +1,98 @@
+name: pipeline_letting
+
+
+# on et push indiquent que le pipeline se déclenche lorsqu'on fait un push.
+# avec pull-request, la chose étant obligatoire lorsqu'on merge une branche non localement, on précise ici
+# qu'on ne vise que la branche main.
+on:
+  push:
+  pull_request:
+    branch:
+      - main
+
+# Déclare les variables d'environnement.
+env:
+  SECRET_KEY: ${{ secrets.SECRET_KEY }}
+  DSN: ${{ secrets.DSN }}
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+  DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+  DOCKER_IMAGE: ${{ secrets.DOCKER_IMAGE }}
+  RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+
+
+# Tâches que le pipeline doit exécuter,
+# ubuntu-latest est le système d'exploitation qu'on utilise,
+# uses pour la version de github action qu'on utilise et la version de python qu'on utilise.
+# create .env file pour créer ici les variables d'environnement.
+# run pour installer flake8, pareil pour setuptools, pareil pour requirements.txt
+# run flake8 pour exécuter flake8
+jobs:
+  linting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - name: create .env file
+        run: |
+            echo SECRET_KEY=$SECRET_KEY >> .env
+            echo DSN=$DSN >> .env
+      - run: pip install flake8
+      - run: pip install setuptools>=65.5.1 wheel>=0.38.1
+      - run: pip install -r requirements.txt
+      - run: flake8 .
+
+# Ici on commence par reprendre la même chose qu'au-dessus.
+# On précise bien needs avant, signifiant qu'on attend qu'un autre se termine pour exécuter.
+# Exécution des commandes pour la couverture de tests.
+  test-and-coverage:
+    runs-on: ubuntu-latest
+    needs: linting
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - name: create .env file
+        run: |
+            echo SECRET_KEY=$SECRET_KEY >> .env
+            echo DSN=$DSN >> .env
+      - run: pip install setuptools>=65.5.1 wheel>=0.38.1
+      - run: pip install -r requirements.txt
+      - run: coverage erase
+      - run: coverage run manage.py test
+      - run: coverage report
+
+# Ici on reprend le même début qu'au-dessus, on change le needs.
+# Avec le if on précise que le job s'exécute que sur la branche main
+# Avec docker login on s'identifie sur docker, on précise qu'on utilise le registry de docker.
+# Ici avec les autres docker on retire les infos de Dockerhub, on construit une image et on remet le tout sur Dockerhub.
+# On build deux images, celle avec le SHA est nouvelle à chaque fois et celle avec latest s'écrase
+# On en push une seule avec les deux tags.
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: test-and-coverage
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      - name: create .env file
+        run: |
+            echo SECRET_KEY=$SECRET_KEY >> .env
+            echo DSN=$DSN >> .env
+      - run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD $DOCKER_REGISTRY
+      # - run: docker pull $DOCKER_USERNAME/$DOCKER_IMAGE
+      - run: docker build -t $DOCKER_USERNAME/$DOCKER_IMAGE:$GITHUB_SHA -t $DOCKER_USERNAME/$DOCKER_IMAGE:latest .
+      - run: docker push --all-tags $DOCKER_USERNAME/$DOCKER_IMAGE
+
+# Ici on active render.
+  deploy-to-render:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      - name: execute render hook
+        run: |
+          curl -X GET $RENDER_DEPLOY_HOOK

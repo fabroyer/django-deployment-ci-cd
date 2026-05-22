@@ -2,43 +2,31 @@ from django.shortcuts import render
 from .models import Profile
 
 
-# Sed placerat quam in pulvinar commodo. Nullam laoreet consectetur ex, sed consequat libero pulvinar eget. Fusc
-# faucibus, urna quis auctor pharetra, massa dolor cursus neque, quis dictum lacus d
-
-
 def index(request):
     """
-    Renders profiles list page with all Profile objects from the database.
-    Fetches Profiles, places them into context, and serves the rendered view.
+     Renders the profiles list page with all Profile objects from the database.
 
-    :param request: http request object.
-    :type request: object
-    :return: http response with context
-    :rtype: tuple[request, html, dict[list[dict]]
-    """
+    Parameters:
+        request: HTTP request object, containing all request information.
 
+    Returns:
+        Renders HTTP response containing the HTML page template and context data.
+     """
     profiles_list = Profile.objects.all()
     context = {"profiles_list": profiles_list}
     return render(request, "profiles/index.html", context)
 
 
-# Aliquam sed metus eget nisi tincidunt ornare accumsan eget lac
-# laoreet neque quis, pellentesque dui. Nullam facilisis pharetra vulputate.
-# Sed tincidunt, dolor id facilisis fringilla, eros leo tristique lacus,
-# it. Nam aliquam dignissim congue. Pellentesque habitant morbi tristique senectus et netus et males
-
-
 def profile(request, username):
     """
-    Renvoie les informations d'une instance de Profile.
+    Renders the profile page for a user.
 
     Parameters:
-        request: objet contenant toutes les informations de la requête.
-        profile_id : id d'une instance de Profile à partir duquel des informations vont être extraites.
+        request: HTTP request object, containing all request information.
+        username: Username associated with the Profile instance from which information is retrieved.
 
     Returns:
-        tupple contenant : toutes les informations de la requête, le template de la page html,un dictionnaire
-         des informations d'une instance de Profile.
+        Renders HTTP response containing the HTML page template and context data.
     """
     profile = Profile.objects.get(user__username=username)
     context = {"profile": profile}

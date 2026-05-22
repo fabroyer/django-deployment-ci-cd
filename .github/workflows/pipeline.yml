@@ -1,16 +1,16 @@
 name: pipeline_letting
 
 
-# on et push indiquent que le pipeline se déclenche lorsqu'on fait un push.
-# avec pull-request, la chose étant obligatoire lorsqu'on merge une branche non localement, on précise ici
-# qu'on ne vise que la branche main.
+# 'on' and 'push' indicate that the pipeline is triggered when a push is made.
+# With pull requests we specify that we only target the main branch.
 on:
   push:
   pull_request:
     branch:
       - main
 
-# Déclare les variables d'environnement.
+
+# Declares environment variables.
 env:
   SECRET_KEY: ${{ secrets.SECRET_KEY }}
   DSN: ${{ secrets.DSN }}
@@ -21,12 +21,12 @@ env:
   RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
 
 
-# Tâches que le pipeline doit exécuter,
-# ubuntu-latest est le système d'exploitation qu'on utilise,
-# uses pour la version de github action qu'on utilise et la version de python qu'on utilise.
-# create .env file pour créer ici les variables d'environnement.
-# run pour installer flake8, pareil pour setuptools, pareil pour requirements.txt
-# run flake8 pour exécuter flake8
+# Tasks that the pipeline must execute.
+# 'ubuntu-latest' is the operating system used.
+# 'uses' specifies the GitHub Action version and the Python version used.
+# 'create .env file' is used here to create environment variables.
+# 'run' is used to install flake8, setuptools and requirements.txt.
+# 'run flake8' to execute flake8.
 jobs:
   linting:
     runs-on: ubuntu-latest
@@ -44,9 +44,8 @@ jobs:
       - run: pip install -r requirements.txt
       - run: flake8 .
 
-# Ici on commence par reprendre la même chose qu'au-dessus.
-# On précise bien needs avant, signifiant qu'on attend qu'un autre se termine pour exécuter.
-# Exécution des commandes pour la couverture de tests.
+# We specify 'needs', meaning that this job waits for another one to finish before running.
+# Executes the commands for test coverage.
   test-and-coverage:
     runs-on: ubuntu-latest
     needs: linting
@@ -65,12 +64,13 @@ jobs:
       - run: coverage run manage.py test
       - run: coverage report
 
-# Ici on reprend le même début qu'au-dessus, on change le needs.
-# Avec le if on précise que le job s'exécute que sur la branche main
-# Avec docker login on s'identifie sur docker, on précise qu'on utilise le registry de docker.
-# Ici avec les autres docker on retire les infos de Dockerhub, on construit une image et on remet le tout sur Dockerhub.
-# On build deux images, celle avec le SHA est nouvelle à chaque fois et celle avec latest s'écrase
-# On en push une seule avec les deux tags.
+# Here we reuse the same setup as above, but change the 'needs'.
+# The 'if' condition specifies that the job only runs on the main branch.
+# With 'docker login' we authenticate to Docker,we specify that we use Docker's registry.
+# The other Docker commands retrieve information from Docker Hub, build an image,
+# and push everything back to Docker Hub.
+# We build two images: the one with the 'SHA' tag is unique each time, the one the 'latest' tag is overwritten.
+# We push a single image with both tags.
   build-and-push:
     runs-on: ubuntu-latest
     needs: test-and-coverage
@@ -86,7 +86,7 @@ jobs:
       - run: docker build -t $DOCKER_USERNAME/$DOCKER_IMAGE:$GITHUB_SHA -t $DOCKER_USERNAME/$DOCKER_IMAGE:latest .
       - run: docker push --all-tags $DOCKER_USERNAME/$DOCKER_IMAGE
 
-# Ici on active render.
+# Render is enabled here.
   deploy-to-render:
     runs-on: ubuntu-latest
     needs: build-and-push
